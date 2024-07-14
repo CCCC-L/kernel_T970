@@ -27,8 +27,17 @@ jobs:
  
       - name: build kernel
         run: |
-          chmod +x build_kernel.sh
-          ./build_kernel.sh
+          args="-j$(nproc --all) \
+            O=out \
+          	ARCH=arm64 \
+          	CLANG_TRIPLE=aarch64-linux-gnu- \
+          	CROSS_COMPILE=/home/tiandou/clang3/aarch64/bin/aarch64-linux-android- \
+          	REAL_CC=/toolchain/llvm-arm-toolchain-ship/10.0/bin/clang"
+          	export DTC_EXT=dtc
+            LLVM=1
+            LLVM_IAS=1
+            make ${args} vendor/gts7xlwifi_eur_open_defconfig 
+            make ${args} 
 
       - name: Upload boot
         uses: actions/upload-artifact@v4
