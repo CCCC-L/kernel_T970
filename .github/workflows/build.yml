@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
       - name: install gcc、clang
         run: |
-          git clone https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linnux-android-4.9  toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
+          git clone https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9  toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
           git clone https://github.com/proprietary-stuff/llvm-arm-toolchain-ship-10.0 toolchain/llvm-arm-toolchain-ship/10.0
  
       - name: build kernel
