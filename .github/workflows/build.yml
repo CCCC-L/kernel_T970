@@ -31,8 +31,8 @@ jobs:
             O=out \
           	ARCH=arm64 \
           	CLANG_TRIPLE=aarch64-linux-gnu- \
-          	CROSS_COMPILE=/home/tiandou/clang3/aarch64/bin/aarch64-linux-android- \
-          	REAL_CC=/toolchain/llvm-arm-toolchain-ship/10.0/bin/clang"
+          	CROSS_COMPILE=$(pwd)/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android- \
+          	REAL_CC=$(pwd)/toolchain/llvm-arm-toolchain-ship/10.0/bin/clang"
           	export DTC_EXT=dtc
             LLVM=1
             LLVM_IAS=1
