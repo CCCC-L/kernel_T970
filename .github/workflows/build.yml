@@ -30,12 +30,8 @@ jobs:
           chmod +x build_kernel.sh
           ./build_kernel.sh
 
-      - name: build ak3
-        run: |
-          cp -f out/arch/arm64/boot/Image.gz release/
-
       - name: Upload boot
         uses: actions/upload-artifact@v4
         with:
           name: boot
-          path: releaseout/arch/arm64/boot
+          path: out/arch/arm64/boot
