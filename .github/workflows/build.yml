@@ -13,7 +13,7 @@ jobs:
       - name: Update dependence
         run: |
           sudo apt update
-          sudo apt install build-essential bc flex bison libncurses5-dev libssl-dev git ccache python2 -y
+          sudo apt install build-essential bc flex bison libncurses5-dev libssl-dev git ccache python2 libtinfo5 -y
           
       - name: Checkout Repo
         uses: actions/checkout@v4
