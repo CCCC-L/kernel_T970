@@ -1,0 +1,38 @@
+name: build kernel
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Update dependence
+        run: |
+          sudo apt update
+          sudo apt install build-essential bc flex bison libncurses5-dev libssl-dev git ccache python2 -y
+          
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+      - name: install gcc、clang
+        run: |
+          git clone https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linnux-android-4.9  toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
+          git clone https://github.com/proprietary-stuff/llvm-arm-toolchain-ship-10.0 toolchain/llvm-arm-toolchain-ship/10.0
+ 
+      - name: build kernel
+        run: |
+          chmod +x build_kernel.sh
+          ./build_kernel.sh
+
+      - name: build ak3
+        run: |
+          cp -f out/arch/arm64/boot/Image.gz release/
+
+      - name: Upload boot
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot
+          path: releaseout/arch/arm64/boot
