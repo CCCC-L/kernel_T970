@@ -57,6 +57,10 @@
 #include <asm/cacheflush.h>
 #include "audit.h"	/* audit_signal_info() */
 
+#ifdef CONFIG_RE_KERNEL
+#include <uapi/linux/android/rekernel.h>
+#endif /* CONFIG_RE_KERNEL */
+
 #ifdef CONFIG_SAMSUNG_FREECESS
 #include <linux/freecess.h>
 #endif
@@ -1283,6 +1287,11 @@ int do_send_sig_info(int sig, struct siginfo *info, struct task_struct *p,
 {
 	unsigned long flags;
 	int ret = -ESRCH;
+
+#ifdef CONFIG_RE_KERNEL
+	if (sig == SIGKILL || sig == SIGTERM || sig == SIGABRT || sig == SIGQUIT)
+		rekernel_report(SIGNAL, sig, current->tgid, current, p->tgid, p, false);
+#endif /* CONFIG_RE_KERNEL */
 
 #ifdef CONFIG_SAMSUNG_FREECESS
 	/*
