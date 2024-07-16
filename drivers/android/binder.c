@@ -82,6 +82,10 @@
 #include "binder_internal.h"
 #include "binder_trace.h"
 
+#ifdef CONFIG_RE_KERNEL
+#include <uapi/linux/android/rekernel.h>
+#endif
+
 #ifdef CONFIG_SAMSUNG_FREECESS
 #include <linux/freecess.h>
 #endif
@@ -3008,6 +3012,45 @@ static int binder_fixup_parent(struct binder_transaction *t,
 	return 0;
 }
 
+#ifdef CONFIG_RE_KERNEL
+static bool binder_can_update_transaction(struct binder_transaction* t1,
+										  struct binder_transaction* t2)
+{
+	if ((t1->flags & t2->flags & TF_ONE_WAY) != TF_ONE_WAY
+		|| !t1->to_proc || !t2->to_proc)
+		return false;
+	if (t1->to_proc->tsk == t2->to_proc->tsk && t1->code == t2->code &&
+		t1->flags == t2->flags &&
+		t1->buffer->target_node->ptr == t2->buffer->target_node->ptr &&
+		t1->buffer->target_node->cookie == t2->buffer->target_node->cookie)
+		return true;
+	return false;
+}
+
+static struct binder_transaction*
+binder_find_outdated_transaction_ilocked(struct binder_transaction* t,
+										 struct list_head* target_list)
+{
+	struct binder_work* w;
+	bool second = false;
+
+	list_for_each_entry(w, target_list, entry) {
+		struct binder_transaction* t_queued;
+
+		if (w->type != BINDER_WORK_TRANSACTION)
+			continue;
+		t_queued = container_of(w, struct binder_transaction, work);
+		if (binder_can_update_transaction(t_queued, t)) {
+			if (second)
+				return t_queued;
+			else
+				second = true;
+		}
+	}
+	return NULL;
+}
+#endif /* CONFIG_RE_KERNEL */
+
 /**
  * binder_proc_transaction() - sends a transaction to a process and wakes it up
  * @t:		transaction to send
@@ -3033,6 +3076,10 @@ static bool binder_proc_transaction(struct binder_transaction *t,
 	struct binder_priority node_prio;
 	bool oneway = !!(t->flags & TF_ONE_WAY);
 	bool pending_async = false;
+
+#ifdef CONFIG_RE_KERNEL
+	struct binder_transaction* t_outdated = NULL;
+#endif
 
 	BUG_ON(!node);
 	binder_node_lock(node);
@@ -3067,6 +3114,15 @@ static bool binder_proc_transaction(struct binder_transaction *t,
 #endif
 		binder_enqueue_thread_work_ilocked(thread, &t->work);
 	} else if (!pending_async) {
+#ifdef CONFIG_RE_KERNEL
+		if (frozen_task_group(proc->tsk)) {
+			t_outdated = binder_find_outdated_transaction_ilocked(t,
+				&node->async_todo);
+			if (t_outdated) {
+				list_del_init(&t_outdated->work.entry);
+			}
+		}
+#endif /* CONFIG_RE_KERNEL */
 #ifdef CONFIG_FAST_TRACK
 		if (is_ftt(&current->se) && !oneway &&
 			binder_enable_fg_switch) {
@@ -3084,6 +3140,19 @@ static bool binder_proc_transaction(struct binder_transaction *t,
 
 	binder_inner_proc_unlock(proc);
 	binder_node_unlock(node);
+
+#ifdef CONFIG_RE_KERNEL
+	if (t_outdated) {
+		struct binder_buffer* buffer = t_outdated->buffer;
+
+		t_outdated->buffer = NULL;
+		buffer->transaction = NULL;
+		binder_transaction_buffer_release(proc, buffer, 0, false);
+		binder_alloc_free_buf(&proc->alloc, buffer);
+		kfree(t_outdated);
+		binder_stats_deleted(BINDER_STAT_TRANSACTION);
+	}
+#endif /* CONFIG_RE_KERNEL */
 
 	return true;
 }
@@ -3291,6 +3360,13 @@ static void binder_transaction(struct binder_proc *proc,
 		target_proc = target_thread->proc;
 		target_proc->tmp_ref++;
 		binder_inner_proc_unlock(target_thread->proc);
+#ifdef CONFIG_RE_KERNEL
+		if (target_proc
+			&& target_proc->tsk
+			&& task_uid(target_proc->tsk).val <= MAX_SYSTEM_UID
+			&& proc->pid != target_proc->pid)
+			rekernel_report(BINDER, REPLY, proc->pid, proc->tsk, target_proc->pid, target_proc->tsk, false);
+#endif /* CONFIG_RE_KERNEL */
 	} else {
 		if (tr->target.handle) {
 			struct binder_ref *ref;
@@ -3343,6 +3419,14 @@ static void binder_transaction(struct binder_proc *proc,
 			goto err_dead_binder;
 		}
 		e->to_node = target_node->debug_id;
+
+#ifdef CONFIG_RE_KERNEL
+		if (target_proc
+			&& target_proc->tsk
+			&& task_uid(target_proc->tsk).val > MIN_USERAPP_UID
+			&& proc->pid != target_proc->pid)
+			rekernel_report(BINDER, TRANSACTION, proc->pid, proc->tsk, target_proc->pid, target_proc->tsk, !!(tr->flags & TF_ONE_WAY));
+#endif
 
 #ifdef CONFIG_SAMSUNG_FREECESS
 		freecess_sync_binder_report(proc, target_proc, tr);
@@ -6693,6 +6777,17 @@ err_alloc_device_names_failed:
 }
 
 device_initcall(binder_init);
+
+#ifdef CONFIG_RE_KERNEL
+struct task_struct* binder_buff_owner(struct binder_alloc* alloc) {
+	struct binder_proc* proc = NULL;
+	if (!alloc)
+		return NULL;
+
+	proc = container_of(alloc, struct binder_proc, alloc);
+	return proc->tsk;
+}
+#endif /* CONFIG_RE_KERNEL */
 
 #define CREATE_TRACE_POINTS
 #include "binder_trace.h"

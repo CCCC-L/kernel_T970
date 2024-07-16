@@ -34,6 +34,10 @@
 #include "binder_alloc.h"
 #include "binder_trace.h"
 
+#ifdef CONFIG_RE_KERNEL
+#include <uapi/linux/android/rekernel.h>
+#endif
+
 #ifdef CONFIG_SAMSUNG_FREECESS
 #include <linux/freecess.h>
 #endif
@@ -356,6 +360,10 @@ static inline struct vm_area_struct *binder_alloc_get_vma(
 	return vma;
 }
 
+#ifdef CONFIG_RE_KERNEL
+extern struct task_struct* binder_buff_owner(struct binder_alloc* alloc);
+#endif /* CONFIG_RE_KERNEL */
+
 static struct binder_buffer *binder_alloc_new_buf_locked(
 				struct binder_alloc *alloc,
 				size_t data_size,
@@ -436,6 +444,17 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 		         alloc->pid, size, alloc->free_async_space);
 		return ERR_PTR(-ENOSPC);
 	}
+
+#ifdef CONFIG_RE_KERNEL
+	if (is_async
+		&& (alloc->free_async_space < 3 * (size + sizeof(struct binder_buffer))
+			|| (alloc->free_async_space < WARN_AHEAD_SPACE))) {
+		struct task_struct* owner = binder_buff_owner(alloc);
+
+		if (owner)
+			rekernel_report(BINDER, OVERFLOW, current->pid, current, owner->pid, owner, true);
+	}
+#endif /* CONFIG_RE_KERNEL */
 
 	/* Pad 0-size buffers so they get assigned unique addresses */
 	size = max(size, sizeof(void *));
