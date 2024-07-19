@@ -3360,13 +3360,6 @@ static void binder_transaction(struct binder_proc *proc,
 		target_proc = target_thread->proc;
 		target_proc->tmp_ref++;
 		binder_inner_proc_unlock(target_thread->proc);
-#ifdef CONFIG_RE_KERNEL
-		if (target_proc
-			&& target_proc->tsk
-			&& task_uid(target_proc->tsk).val <= MAX_SYSTEM_UID
-			&& proc->pid != target_proc->pid)
-			rekernel_report(BINDER, REPLY, proc->pid, proc->tsk, target_proc->pid, target_proc->tsk, false);
-#endif /* CONFIG_RE_KERNEL */
 	} else {
 		if (tr->target.handle) {
 			struct binder_ref *ref;
@@ -3419,14 +3412,6 @@ static void binder_transaction(struct binder_proc *proc,
 			goto err_dead_binder;
 		}
 		e->to_node = target_node->debug_id;
-
-#ifdef CONFIG_RE_KERNEL
-		if (target_proc
-			&& target_proc->tsk
-			&& task_uid(target_proc->tsk).val > MIN_USERAPP_UID
-			&& proc->pid != target_proc->pid)
-			rekernel_report(BINDER, TRANSACTION, proc->pid, proc->tsk, target_proc->pid, target_proc->tsk, !!(tr->flags & TF_ONE_WAY));
-#endif
 
 #ifdef CONFIG_SAMSUNG_FREECESS
 		freecess_sync_binder_report(proc, target_proc, tr);
@@ -3641,6 +3626,15 @@ retry_lowmem:
 	t->buffer->debug_id = t->debug_id;
 	t->buffer->transaction = t;
 	t->buffer->target_node = target_node;
+#ifdef CONFIG_RE_KERNEL
+	if (!reply) {
+		if (target_proc
+			&& target_proc->tsk
+			&& task_uid(target_proc->tsk).val > MIN_USERAPP_UID
+			&& proc->pid != target_proc->pid)
+			rekernel_report(BINDER, TRANSACTION, proc->pid, proc->tsk, target_proc->pid, target_proc->tsk, !!(tr->flags & TF_ONE_WAY));
+	}
+#endif
 	trace_binder_transaction_alloc_buf(t->buffer);
 
 	if (binder_alloc_copy_user_to_buffer(
