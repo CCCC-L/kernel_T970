@@ -1061,7 +1061,6 @@ static int exec_mmap(struct mm_struct *mm)
 	tsk->mm = mm;
 	tsk->active_mm = mm;
 	activate_mm(active_mm, mm);
-	lru_gen_use_mm(mm);
 	tsk->mm->vmacache_seqnum = 0;
 	lru_gen_add_mm(mm);
 	vmacache_flush(tsk);
@@ -1070,6 +1069,7 @@ static int exec_mmap(struct mm_struct *mm)
 		uh_call(UH_APP_RKP, RKP_KDP_X43, (u64)current_cred(), (u64)mm->pgd, 0, 0);
 #endif 
 	task_unlock(tsk);
+	lru_gen_use_mm(mm);
 	if (old_mm) {
 		up_read(&old_mm->mmap_sem);
 		BUG_ON(active_mm != old_mm);
