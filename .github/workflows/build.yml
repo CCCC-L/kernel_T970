@@ -51,8 +51,15 @@ jobs:
             make ${args} vendor/gts7xlwifi_eur_open_defconfig 
             make ${args} 
 
+      - name: build ak3
+        run : |
+          git clone https://github.com/CCCC-L/anyKernel3 releases
+          sed -i "s/{branch}/${{ github.ref_name }}/" releases/anykernel.sh
+          rm -rf releases/.git
+          mv out/arch/arm64/boot/Image releases
+
       - name: Upload boot
         uses: actions/upload-artifact@v4
         with:
-          name: boot
-          path: out/arch/arm64/boot
+          name: T970-kernel-${{ github.ref_name }}
+          path: releases
